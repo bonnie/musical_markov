@@ -11,15 +11,25 @@ MIDI_EXT = 'mid'
 def markovify_score(filepath, score, notecount, markovcount):
     """add markov chains to db using music21 score object"""
 
+    # for now, only look at first (nonempty) part to the score (parts are like 
+    # parallel voices -- choral voices, for example, or for tracking double 
+    # stops on the cello). In the future...?
+
+    # if the score has no notes, bail
+    part_notes = score.parts[0].notesAndRests
+    i = 1
+    while not len(part_notes) and i < len(score.parts):
+        part_notes = score.parts[i].notesAndRests
+
+    if not len(part_notes):
+        # we're screwed. Moving on. 
+        print '\n\t****** SKIPPING', filepath, ': no notes\n'
+        return notecount, markovcount
+
     # get / make the tempo and tune objects
     tempo = Tempo.add(score)
     tune = Tune.add(filepath, tempo)
 
-    # for now, only look at first part to the score (parts are like parallel 
-    # voices -- choral voices, for example, or for tracking double stops on the
-    # cello). In the future...?
-    part = score.parts[0]
-    part_notes = part.notesAndRests
 
     print "\ttotal notes and rests", len(part_notes)
 
@@ -56,7 +66,11 @@ def markovify_score(filepath, score, notecount, markovcount):
 
 
 def load_bachdata():
-    """load data from midi bach files in BACH_DATADIR"""
+    """load data from midi bach files in BACH_DATADIR
+
+    These files were downloaded from: 
+
+        http://www.jsbach.net/midi/midi_solo_cello.html"""
 
     notecount = 0
     markovcount = 0
@@ -73,7 +87,7 @@ if __name__ == "__main__":
     app = Flask(__name__)
     connect_to_db(app)
 
-    db.drop_all()
-    db.create_all()
+    # db.drop_all()
+    # db.create_all()
 
-    load_bachdata()
+    # load_bachdata()
