@@ -45,6 +45,11 @@ class Duration(db.Model):
         db.session.add(duration)
         return duration
 
+    def generate_m21_duration(self):
+        """return a music21 duration object for this duration"""
+
+        return m21.duration.Duration(self.quarter_notes)
+
     def __repr__(self):
         """Provide helpful representation when printed."""
 
@@ -109,6 +114,23 @@ class Note(db.Model):
         tunenote = TuneNote(tune_id=tune.tune_id, note_id=new_note.note_id, index=index)
 
         return new_note
+
+
+    def generate_m21_note(self):
+        """return a music21 note object for this note. 
+
+        for creating streams to transform into MIDI files"""
+
+        if self.note_name:
+            # it's a note
+            mnote = m21.note.Note(self.note_name + str(self.octave))
+
+        else:
+            # it's a rest
+            mnote = m21.note.Rest()
+
+        mnote.duration = self.duration.generate_m21_duration()
+        return mnote
 
     def __repr__(self):
         """Provide helpful representation when printed."""
