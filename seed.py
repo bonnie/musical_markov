@@ -53,6 +53,7 @@ def markovify_score(filepath, score, logfile, notecount, markovcount):
     tune = Tune.add(filepath, tempo, instrument)
 
     write_logfile(["\ttotal notes and rests", str(len(part_notes))], logfile)
+    print "tune", tune
 
     # get the first two notes in preparation for markovification
     note_a = Note.add(part_notes[0], tune, 0)

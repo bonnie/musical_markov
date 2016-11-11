@@ -81,11 +81,9 @@ class Note(db.Model, Music21AnalogMixin):
     octave = db.Column(db.Integer, nullable=True)
 
     duration_id = db.Column(db.Integer, db.ForeignKey('durations.duration_id'))
-    tempo_id = db.Column(db.Integer, db.ForeignKey('tempi.tempo_id'))
 
     ## relationships ##
     duration = db.relationship('Duration')
-    tempo = db.relationship('Tempo')
 
     @classmethod
     def add(cls, m21_note, tune, index):
@@ -118,6 +116,7 @@ class Note(db.Model, Music21AnalogMixin):
         # add note to tune
         db.session.flush()
         tunenote = TuneNote(tune_id=tune.tune_id, note_id=new_note.note_id, index=index)
+        db.session.add(tunenote)
 
         return new_note
 
@@ -258,13 +257,14 @@ class Tune(db.Model):
         tune = cls(tune_name=name, 
                    tempo_id=tempo.tempo_id, 
                    instrument_id=instrument.instrument_id)
+        db.session.add(tune)
         return tune
 
     def __repr__(self):
         """Provide helpful representation when printed."""
 
         return "<Tune tune_id=%s name=%s tempo_id=%s>" % \
-                (self.tune_id, self.name, self.tempo_id)
+                (self.tune_id, self.tune_name, self.tempo_id)
 
     
 class Chain(db.Model, Music21AnalogMixin):
