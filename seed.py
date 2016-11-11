@@ -1,14 +1,35 @@
 """seed database with notes and markov chains"""
 
-from model import db, connect_to_db, Note, NextNote, Tempo, Chain, Tune
+from model import db, connect_to_db, Note, NextNote, Tempo, Chain, Tune, Instrument
 import os
 from music21 import note, corpus, converter
 from music21.metadata import Metadata
+from datetime import datetime
 
-BACH_DATADIR = 'data/bach_cello_suites'
+def get_timestamp_string():
+    """simple function to return 'now' in the form of a timestamp string"""
+
+    return datetime.now().strftime("%s")
+
+DATADIR = 'data'
+LOGDIR = 'logs'
+LOGFILE = os.path.join(LOGDIR, get_timestamp_string() + '.log')
+BACH_DATADIR = os.path.join(DATADIR, 'bach_cello_suites')
+BACH_LOGFILE = os.path.join(BACH_DATADIR, LOGFILE)
 MIDI_EXT = 'mid'
 
-def markovify_score(filepath, score, notecount, markovcount):
+def write_logfile(logline, logfile):
+    """write string to logfile, followed by a newline. Also print to terminal.
+
+    if line is in the form of a list, join it with spaces before printing."""
+
+    if isinstance(logline, list):
+        logline = ' '.join(logline)
+
+    print logline
+    logfile.write(logline + '\n')
+
+def markovify_score(filepath, score, logfile, notecount, markovcount):
     """add markov chains to db using music21 score object"""
 
     # for now, only look at first (nonempty) part to the score (parts are like 
@@ -23,15 +44,15 @@ def markovify_score(filepath, score, notecount, markovcount):
 
     if not len(part_notes):
         # we're screwed. Moving on. 
-        print '\n\t****** SKIPPING', filepath, ': no notes\n'
+        write_logfile(['\n\t****** SKIPPING', filepath, ': no notes\n'], logfile)
         return notecount, markovcount
 
-    # get / make the tempo and tune objects
+    # get / make the tempo, tune and instrument objects
     tempo = Tempo.add(score)
-    tune = Tune.add(filepath, tempo)
+    instrument = Instrument.add(score.parts[0].getInstrument())
+    tune = Tune.add(filepath, tempo, instrument)
 
-
-    print "\ttotal notes and rests", len(part_notes)
+    write_logfile(["\ttotal notes and rests", str(len(part_notes))], logfile)
 
     # get the first two notes in preparation for markovification
     note_a = Note.add(part_notes[0], tune, 0)
@@ -59,8 +80,8 @@ def markovify_score(filepath, score, notecount, markovcount):
     new_notecount = Note.query.count()
     new_markovcount = Chain.query.count()
 
-    print '\tadded', new_notecount - notecount, 'notes'
-    print '\tadded', new_markovcount - markovcount, 'chains'
+    write_logfile(['\tadded', str(new_notecount - notecount), 'notes'], logfile)
+    write_logfile(['\tadded', str(new_markovcount - markovcount), 'chains'], logfile)
 
     return new_notecount, new_markovcount
 
@@ -74,12 +95,21 @@ def load_bachdata():
 
     notecount = 0
     markovcount = 0
+    logfile = open(BACH_LOGFILE, 'w')
 
     for filepath in os.listdir(BACH_DATADIR):
         if filepath.endswith(MIDI_EXT): 
-            print "processing", filepath
+            write_logfile('processing {}'.format(filepath), logfile)
             score = converter.parse(os.path.join(BACH_DATADIR, filepath))
-            notecount, markovcount = markovify_score(filepath, score, notecount, markovcount)
+            notecount, markovcount = markovify_score(filepath, score, logfile, notecount, markovcount)
+
+    logfile.close()
+
+def load_reels_and_hornpipes():
+    """load data from the music21 corpus Ryan's Mammoth Collection"""
+
+    pass
+
 
 if __name__ == "__main__":
 
@@ -87,7 +117,7 @@ if __name__ == "__main__":
     app = Flask(__name__)
     connect_to_db(app)
 
-    # db.drop_all()
-    # db.create_all()
+    db.drop_all()
+    db.create_all()
 
-    # load_bachdata()
+    load_bachdata()

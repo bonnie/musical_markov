@@ -15,7 +15,24 @@ db = SQLAlchemy()
 ##############################################################################
 # Model definitions
 
-class Duration(db.Model):
+class Music21AnalogMixin():
+    """a mixin class for translating between my objs and m21 objs"""
+
+    @classmethod
+    def add(cls, **kwargs):
+        """given data (kwargs), find obj or instantiate obj and add to db. 
+
+        return obj"""
+
+        try:
+            new_obj = cls.query.filter_by(**kwargs).one()
+        except NoResultFound:
+            new_obj = cls(**kwargs)
+            db.session.add(new_obj)
+
+        return new_obj
+
+class Duration(db.Model, Music21AnalogMixin):
     """note duration"""
 
     __tablename__ = 'durations'
@@ -37,15 +54,10 @@ class Duration(db.Model):
         if isinstance(quarter_notes, Fraction):
             quarter_notes = float(quarter_notes)
 
-        try:
-            duration = cls.query.filter_by(quarter_notes=quarter_notes).one()
-        except NoResultFound:
-            duration = cls(quarter_notes=quarter_notes)
+        # instantiate / find obj and return
+        return super(Duration, cls).add(quarter_notes=quarter_notes)
 
-        db.session.add(duration)
-        return duration
-
-    def generate_m21_duration(self):
+    def generate_m21(self):
         """return a music21 duration object for this duration"""
 
         return m21.duration.Duration(self.quarter_notes)
@@ -57,7 +69,7 @@ class Duration(db.Model):
                 (self.duration_id, self.quarter_notes)
 
 
-class Note(db.Model):
+class Note(db.Model, Music21AnalogMixin):
     """Note, including pitch and duration"""
 
     __tablename__ = 'notes'
@@ -98,16 +110,10 @@ class Note(db.Model):
             note_name = None
             octave = None
 
-        # does this note already exist? 
-        try: 
-            new_note = Note.query.filter_by(note_name=note_name, 
-                                            octave=octave, 
-                                            duration_id=duration.duration_id).one()
-
-        except NoResultFound: 
-            new_note = cls(note_name=note_name, octave=octave)
-            new_note.duration = duration
-            db.session.add(new_note)
+        # instantiate / find obj and return
+        new_note = super(Note, cls).add(note_name=note_name, 
+                                  octave=octave, 
+                                  duration_id=duration.duration_id)
 
         # add note to tune
         db.session.flush()
@@ -116,7 +122,7 @@ class Note(db.Model):
         return new_note
 
 
-    def generate_m21_note(self):
+    def generate_m21(self):
         """return a music21 note object for this note. 
 
         for creating streams to transform into MIDI files"""
@@ -129,7 +135,7 @@ class Note(db.Model):
             # it's a rest
             mnote = m21.note.Rest()
 
-        mnote.duration = self.duration.generate_m21_duration()
+        mnote.duration = self.duration.generate_m21()
         return mnote
 
     def __repr__(self):
@@ -139,7 +145,7 @@ class Note(db.Model):
                 (self.note_id, self.note_name, self.octave, self.duration.quarter_notes)
 
 
-class Tempo(db.Model):
+class Tempo(db.Model, Music21AnalogMixin):
     """musical tempo"""
 
     __tablename__ = 'tempi'
@@ -161,13 +167,8 @@ class Tempo(db.Model):
         spq = metronome_mark.secondsPerQuarter()
         text = metronome_mark.text
 
-        try:
-            tempo = Tempo.query.filter_by(text=text, seconds_per_quarter=spq).one()
-        except NoResultFound:
-            tempo = Tempo(text=text, seconds_per_quarter=spq)
-
-        db.session.add(tempo)
-        return tempo
+        # instantiate / find obj and return
+        return super(Tempo, cls).add(text=text, seconds_per_quarter=spq)
 
 
     def __repr__(self):
@@ -175,6 +176,39 @@ class Tempo(db.Model):
 
         return "<Tempo id=%s text=%s seconds/quarter=%s>" % \
                 (self.tempo_id, self.text, self.seconds_per_quarter)
+
+
+class Instrument(db.Model, Music21AnalogMixin):
+    """to hold midi instruments"""
+
+    __tablename__ = 'instruments'
+
+    instrument_id = db.Column(db.Integer, autoincrement=True, primary_key=True)
+    instrument_name = db.Column(db.String(32))
+
+    @classmethod
+    def add(cls, m21_instrument):
+        """given a music21 instrument, instantiate and add this instrument
+
+        If instrument already exists, simply return existing instrument
+
+        returns instrument obj
+        """
+
+        # instantiate / find obj and return
+        return super(Instrument, cls).add(instrument_name=m21_instrument.instrumentName)
+
+
+    def generate_m21(self):
+        """return a music21 instrument object for this instrument"""
+
+        return m21.instrument.fromString(self.instrument_name)
+
+    def __repr__(self):
+        """Provide helpful representation when printed."""
+
+        return "<Instrument instrument_id=%s instrument_name=%s>" % \
+                (self.instrument_id, self.instrument_id)
 
 
 class TuneNote(db.Model):
@@ -204,21 +238,26 @@ class Tune(db.Model):
     tune_id = db.Column(db.Integer, autoincrement=True, primary_key=True)
     tune_name = db.Column(db.String(256))
     tempo_id = db.Column(db.Integer, db.ForeignKey('tempi.tempo_id'))
+    instrument_id = db.Column(db.Integer, db.ForeignKey('instruments.instrument_id'))
 
     ### relationships ###
     tempo = db.relationship('Tempo')
+    instrument = db.relationship('Instrument')
     notes = db.relationship('Note', 
                             secondary='tunenotes', 
                             order_by='TuneNote.index', 
                             backref='tunes')
 
     @classmethod
-    def add(cls, name, tempo):
+    def add(cls, name, tempo, instrument):
         """given a name and a tempo, create a tune obj and add to db 
 
         returns tune obj"""
 
-        tune = cls(tune_name=name, tempo_id=tempo.tempo_id)
+        # no 'super' method here -- no such thing as a duplicate tune (for now...)
+        tune = cls(tune_name=name, 
+                   tempo_id=tempo.tempo_id, 
+                   instrument_id=instrument.instrument_id)
         return tune
 
     def __repr__(self):
@@ -228,7 +267,7 @@ class Tune(db.Model):
                 (self.tune_id, self.name, self.tempo_id)
 
     
-class Chain(db.Model):
+class Chain(db.Model, Music21AnalogMixin):
     """table to track Markov sequences"""
 
     __tablename__ = 'chains'
@@ -244,14 +283,9 @@ class Chain(db.Model):
         returns a chain object.
         """
         
-        try: 
-            chain = Chain.query.filter_by(note1_id=note1.note_id, 
-                                          note2_id=note2.note_id).one()
-        except NoResultFound:
-            chain = cls(note1_id=note1.note_id, note2_id = note2.note_id)
-            db.session.add(chain)
+        # instantiate / find obj and return
+        return super(Chain, cls).add(note1_id=note1.note_id, note2_id=note2.note_id)
 
-        return chain
 
     def __repr__(self):
         """Provide helpful representation when printed."""
@@ -276,6 +310,7 @@ class NextNote(db.Model):
         OR: add to the weight of the nextnote object if it already exists
         """
 
+        # no super method here -- we need to add to the weight if we find the nextnote
         try:
             nextnote = cls.query.filter_by(chain_id=chain.chain_id, note_id=note.note_id).one()
 

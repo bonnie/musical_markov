@@ -1,20 +1,21 @@
 """Make compositions from musical markov chains"""
 
 from model import db, connect_to_db, Chain, NextNote, Note
-from music21.stream import Stream
+from music21 import stream
 from sqlalchemy.orm.exc import NoResultFound
+from seed import get_timestamp_string
 
 import random
 import os
-from datetime import datetime
 
 MIDI_DIR = 'data/markov_midis'
 
 def make_markov():
     """make a midi melody file based on database markov chain"""
 
-    # to hold our melody in the form of a m21 stream
-    note_stream = Stream()
+    # to hold our melody in the form of a m21 score
+    markov_score = stream.Score()
+    part = stream.Part()
 
     # choose a random chain to start
     rand_markov = random.randint(1, Chain.query.count())
@@ -22,9 +23,17 @@ def make_markov():
 
     # start with the first two notes
     note1, note2 = chain.note1_id, chain.note2_id
+
+    # set the instrument to be the instrument of the first note
+    starting_instrument = Note.query.get(note1).tune.instrument
+    m21_instrument = starting_instrument.generate_m21()
+    part.insert(m21_instrument)
+
+    # add the notes to the part
     for starter_note in (note1, note2):
-        m21_note = Note.query.get(starter_note).generate_m21_note()
-        note_stream.append(m21_note)
+        m21_note = Note.query.get(starter_note).generate_m21()
+        part.append(m21_note)
+
 
     # keep on chaining until told otherwise
     while True:
@@ -64,7 +73,7 @@ def make_markov():
 
         # make a music21 note and add to the running stream
         m21_note = next_note_complete.generate_m21_note()
-        note_stream.append(m21_note)
+        part.append(m21_note)
         print "added note id", next_note
 
         # reset for next time
@@ -78,7 +87,7 @@ def make_markov():
             break
 
     # midi-ify the stream and write to disk
-    timestamp = datetime.now().strftime("%s")
+    timestamp = get_timestamp_string()
     filename = timestamp + '.midi'
     filepath = os.path.join(MIDI_DIR, filename)
     note_stream.write('midi', fp=filepath)
