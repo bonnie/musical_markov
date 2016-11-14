@@ -29,6 +29,7 @@ class Music21AnalogMixin():
         except NoResultFound:
             new_obj = cls(**kwargs)
             db.session.add(new_obj)
+            db.session.flush()
 
         return new_obj
 
@@ -207,7 +208,7 @@ class Instrument(db.Model, Music21AnalogMixin):
         """Provide helpful representation when printed."""
 
         return "<Instrument instrument_id=%s instrument_name=%s>" % \
-                (self.instrument_id, self.instrument_id)
+                (self.instrument_id, self.instrument_name)
 
 
 class TuneNote(db.Model):
@@ -225,8 +226,8 @@ class TuneNote(db.Model):
     def __repr__(self):
         """Provide helpful representation when printed."""
 
-        return "<TuneNote tunenote_id=%s tune_id=%s note_id=%s>" % \
-                (self.tunenote_id, self.tune_id, self.note_id)
+        return "<TuneNote tunenote_id=%s tune_id=%s note_id=%s position=%s>" % \
+                (self.tunenote_id, self.tune_id, self.note_id, self.index)
 
 
 class Tune(db.Model):

@@ -4,11 +4,31 @@ from model import db, connect_to_db, Chain, NextNote, Note
 from music21 import stream
 from sqlalchemy.orm.exc import NoResultFound
 from seed import get_timestamp_string
+from music21.midi.translate import music21ObjectToMidiFile
 
 import random
 import os
 
 MIDI_DIR = 'data/markov_midis'
+
+def get_common_m21_instrument(note1_id, note2_id):
+    """find a common instrument between two notes
+
+    If there's more than one common instrument, return one at random"""
+
+    inst_sets = [set(), set()]
+    for i, note in enumerate([note1_id, note2_id]):
+        insts = inst_sets[i]
+        tunes = Note.query.get(note).tunes
+        for tune in tunes: 
+            insts.add(tune.instrument)
+        
+        print inst_sets
+
+    # there may be several common instruments; choose one at random
+    common_instrument = (inst_sets[0] & inst_sets[1]).pop()
+
+    return common_instrument.generate_m21()
 
 def make_markov():
     """make a midi melody file based on database markov chain"""
@@ -24,9 +44,8 @@ def make_markov():
     # start with the first two notes
     note1, note2 = chain.note1_id, chain.note2_id
 
-    # set the instrument to be the instrument of the first note
-    starting_instrument = Note.query.get(note1).tune.instrument
-    m21_instrument = starting_instrument.generate_m21()
+    # set the instrument to be the instrument in common for the first and second notes
+    m21_instrument = get_common_m21_instrument(note1, note2)
     part.insert(m21_instrument)
 
     # add the notes to the part
@@ -67,12 +86,8 @@ def make_markov():
             print "ending on a whole note"
             break
 
-        if next_duration == 0:
-            print 'found note with zero duration. Skipping.'
-            continue
-
         # make a music21 note and add to the running stream
-        m21_note = next_note_complete.generate_m21_note()
+        m21_note = next_note_complete.generate_m21()
         part.append(m21_note)
         print "added note id", next_note
 
@@ -90,7 +105,8 @@ def make_markov():
     timestamp = get_timestamp_string()
     filename = timestamp + '.midi'
     filepath = os.path.join(MIDI_DIR, filename)
-    note_stream.write('midi', fp=filepath)
+    markov_score.insert(0, part)
+    markov_score.write('midi', fp=filepath)
 
 
 if __name__ == '__main__':
