@@ -105,7 +105,7 @@ def make_markov():
     timestamp = get_timestamp_string()
     filename = timestamp + '.midi'
     filepath = os.path.join(MIDI_DIR, filename)
-    markov_score.insert(0, part)
+    markov_score.insert(0, Part)
     markov_score.write('midi', fp=filepath)
 
 

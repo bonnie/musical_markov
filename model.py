@@ -187,7 +187,7 @@ class Instrument(db.Model, Music21AnalogMixin):
     instrument_name = db.Column(db.String(32))
 
     @classmethod
-    def add(cls, m21_instrument):
+    def add(cls, m21_instrument, default_instrument):
         """given a music21 instrument, instantiate and add this instrument
 
         If instrument already exists, simply return existing instrument
@@ -196,7 +196,8 @@ class Instrument(db.Model, Music21AnalogMixin):
         """
 
         # instantiate / find obj and return
-        return super(Instrument, cls).add(instrument_name=m21_instrument.instrumentName)
+        name = m21_instrument.instrumentName or default_instrument        
+        return super(Instrument, cls).add(instrument_name=name)
 
 
     def generate_m21(self):

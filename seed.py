@@ -16,6 +16,8 @@ LOGDIR = 'logs'
 LOGFILE = os.path.join(LOGDIR, get_timestamp_string() + '.log')
 BACH_DATADIR = os.path.join(DATADIR, 'bach_cello_suites')
 BACH_LOGFILE = os.path.join(BACH_DATADIR, LOGFILE)
+RYAN_DATADIR = os.path.join(DATADIR, 'ryans_mammoth')
+RYAN_LOGFILE = os.path.join(RYAN_DATADIR, LOGFILE)
 MIDI_EXT = 'mid'
 
 def write_logfile(logline, logfile):
@@ -29,19 +31,12 @@ def write_logfile(logline, logfile):
     print logline
     logfile.write(logline + '\n')
 
-def markovify_score(filepath, score, logfile, notecount, markovcount):
-    """add markov chains to db using music21 score object"""
+def markovify_score(filepath, score, logfile, default_instrument, notecount, markovcount):
+    """add markov chains to db using music21 objects"""
 
-    # for now, only look at first (nonempty) part to the score (parts are like 
-    # parallel voices -- choral voices, for example, or for tracking double 
-    # stops on the cello). In the future...?
+    part_notes = score.notesAndRests
 
     # if the score has no notes, bail
-    part_notes = score.parts[0].notesAndRests
-    i = 1
-    while not len(part_notes) and i < len(score.parts):
-        part_notes = score.parts[i].notesAndRests
-
     if not len(part_notes):
         # we're screwed. Moving on. 
         write_logfile(['\n\t****** SKIPPING', filepath, ': no notes\n'], logfile)
@@ -49,7 +44,7 @@ def markovify_score(filepath, score, logfile, notecount, markovcount):
 
     # get / make the tempo, tune and instrument objects
     tempo = Tempo.add(score)
-    instrument = Instrument.add(score.parts[0].getInstrument())
+    instrument = Instrument.add(score.getInstrument(), default_instrument)
     tune = Tune.add(filepath, tempo, instrument)
 
     write_logfile(["\ttotal notes and rests", str(len(part_notes))], logfile)
@@ -90,29 +85,59 @@ def markovify_score(filepath, score, logfile, notecount, markovcount):
     return new_notecount, new_markovcount
 
 
-def load_bachdata():
-    """load data from midi bach files in BACH_DATADIR
+def load_data(use_corpus, source, logfile_path, default_instrument, ext=None, flatten=False):
+    """load data from files in the data directory, or from the m21 corpus
 
-    These files were downloaded from: 
+    if it's corpus, the corpus parameter will be True, data on disk, it will be false
 
-        http://www.jsbach.net/midi/midi_solo_cello.html"""
+    if it's corpus, the source will be the corpus composer, otherwise it will
+    be the location of the files within the data directory
 
-    notecount = 0
-    markovcount = 0
-    logfile = open(BACH_LOGFILE, 'w')
+    ext is the required file extension for files on disk
 
-    for filepath in os.listdir(BACH_DATADIR):
-        if filepath.endswith(MIDI_EXT): 
+    flatten is whether or not the score requires flattening before processing"""
+
+    notecount = Note.query.count()
+    markovcount = Chain.query.count()
+
+    logfile = open(logfile_path, 'w')
+
+    if use_corpus: 
+        paths = corpus.getComposer(source)
+    else:
+        paths = [os.path.join(source, file) for file in os.listdir(source)]
+
+    for filepath in paths:
+
+        # check for extension if necessary
+        if not ext or filepath.endswith(ext): 
+
             write_logfile('processing {}'.format(filepath), logfile)
-            score = converter.parse(os.path.join(BACH_DATADIR, filepath))
-            notecount, markovcount = markovify_score(filepath, score, logfile, notecount, markovcount)
+            score = converter.parse(filepath)
+            if flatten:
+                score = score.flat
+            else:
+
+                # for now, only look at first (nonempty) part to the score (parts are like 
+                # parallel voices -- choral voices, for example, or for tracking double 
+                # stops on the cello). In the future...?
+
+                ### this next part iterates thorugh all parts to try and get one with notes
+                # part_notes = score.parts[0].notesAndRests
+                # i = 1
+                # while not len(part_notes) and i < len(score.parts):
+                #     part_notes = score.parts[i].notesAndRests
+
+                score = score.parts[0]
+
+            notecount, markovcount = markovify_score(filepath, 
+                                                     score, 
+                                                     logfile, 
+                                                     default_instrument, 
+                                                     notecount, 
+                                                     markovcount)
 
     logfile.close()
-
-def load_reels_and_hornpipes():
-    """load data from the music21 corpus Ryan's Mammoth Collection"""
-
-    pass
 
 
 if __name__ == "__main__":
@@ -121,7 +146,21 @@ if __name__ == "__main__":
     app = Flask(__name__)
     connect_to_db(app)
 
-    db.drop_all()
-    db.create_all()
+    # db.drop_all()
+    # db.create_all()
 
-    load_bachdata()
+    # midi bach files in BACH_DATADIR
+    # These files were downloaded from: 
+    #     http://www.jsbach.net/midi/midi_solo_cello.html"""
+    # load_data(use_corpus=False, 
+        # source=BACH_DATADIR, 
+        # logfile_path=BACH_LOGFILE, 
+        # default_instrument='Violoncello'
+        # ext=MIDI_EXT)
+
+    # reels and hornpipes from the corpus
+    load_data(use_corpus=True, 
+        source='ryansMammoth', 
+        logfile_path=RYAN_LOGFILE,
+        default_instrument='Whistle',
+        flatten=True)
