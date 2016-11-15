@@ -77,6 +77,12 @@ def make_markov():
         next_note_complete = Note.query.get(next_note)
         next_name = next_note_complete.note_name
         next_duration = next_note_complete.duration.quarter_notes
+
+        if not next_name and not next_duration:
+            # we came to the end of a tune
+            print "Found the end of a tune. Done."
+            break
+
         if next_name is None and next_duration >= 4:
             print "Found long rest. Done."
             break
@@ -105,7 +111,7 @@ def make_markov():
     timestamp = get_timestamp_string()
     filename = timestamp + '.midi'
     filepath = os.path.join(MIDI_DIR, filename)
-    markov_score.insert(0, Part)
+    markov_score.insert(0, part)
     markov_score.write('midi', fp=filepath)
 
 

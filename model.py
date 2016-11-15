@@ -81,7 +81,7 @@ class Note(db.Model, Music21AnalogMixin):
     note_name = db.Column(db.String(3), nullable=True)
     octave = db.Column(db.Integer, nullable=True)
 
-    duration_id = db.Column(db.Integer, db.ForeignKey('durations.duration_id'))
+    duration_id = db.Column(db.Integer, db.ForeignKey('durations.duration_id'), nullable=True)
 
     ## relationships ##
     duration = db.relationship('Duration')
@@ -302,7 +302,7 @@ class NextNote(db.Model):
 
     nextnote_id = db.Column(db.Integer, autoincrement=True, primary_key=True)
     chain_id = db.Column(db.Integer, db.ForeignKey('chains.chain_id'))
-    note_id = db.Column(db.Integer, db.ForeignKey('notes.note_id'))
+    note_id = db.Column(db.Integer, db.ForeignKey('notes.note_id'), nullable=True)
     weight = db.Column(db.Integer, default=1)
 
     @classmethod

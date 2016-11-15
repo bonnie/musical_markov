@@ -5,6 +5,22 @@ import os
 from music21 import note, corpus, converter
 from music21.metadata import Metadata
 from datetime import datetime
+from sqlalchemy.orm.exc import NoResultFound
+
+# the id of the null_note
+global null_note
+
+def get_nullnote_id():
+    """make a null note for markov chains without an ending"""
+
+    try: 
+        null_note = Note.query.filter_by(duration=None).one()
+    except NoResultFound: 
+        null_note = Note()
+        db.session.add(null_note)
+        db.session.commit()
+
+    return null_note
 
 def get_timestamp_string():
     """simple function to return 'now' in the form of a timestamp string"""
@@ -73,6 +89,11 @@ def markovify_score(filepath, score, logfile, default_instrument, notecount, mar
 
         # so we make new objects to add, rather than changing existing ones
         del markov, note_c 
+
+    # register the last markov chain
+    markov = Chain.add(note_a, note_b)
+    note_c = null_note
+    NextNote.add(markov, note_c)
 
     db.session.commit()
 
@@ -146,17 +167,20 @@ if __name__ == "__main__":
     app = Flask(__name__)
     connect_to_db(app)
 
-    # db.drop_all()
-    # db.create_all()
+    db.drop_all()
+    db.create_all()
+
+    # set the global nullnote ID
+    null_note = get_nullnote_id()
 
     # midi bach files in BACH_DATADIR
     # These files were downloaded from: 
     #     http://www.jsbach.net/midi/midi_solo_cello.html"""
-    # load_data(use_corpus=False, 
-        # source=BACH_DATADIR, 
-        # logfile_path=BACH_LOGFILE, 
-        # default_instrument='Violoncello'
-        # ext=MIDI_EXT)
+    load_data(use_corpus=False, 
+        source=BACH_DATADIR, 
+        logfile_path=BACH_LOGFILE, 
+        default_instrument='Violoncello',
+        ext=MIDI_EXT)
 
     # reels and hornpipes from the corpus
     load_data(use_corpus=True, 
