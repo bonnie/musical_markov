@@ -76,12 +76,15 @@ def make_markov():
         # if we've hit a long rest, call it a day
         next_note_complete = Note.query.get(next_note)
         next_name = next_note_complete.note_name
-        next_duration = next_note_complete.duration.quarter_notes
+        next_duration = next_note_complete.duration
 
         if not next_name and not next_duration:
             # we came to the end of a tune
             print "Found the end of a tune. Done."
             break
+
+        # okay, there's an actual duration, let's get the quarter notes
+        next_duration = next_duration.quarter_notes
 
         if next_name is None and next_duration >= 4:
             print "Found long rest. Done."
