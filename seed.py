@@ -186,5 +186,5 @@ if __name__ == "__main__":
     load_data(use_corpus=True, 
         source='ryansMammoth', 
         logfile_path=RYAN_LOGFILE,
-        default_instrument='Whistle',
+        default_instrument='Flute',
         flatten=True)
